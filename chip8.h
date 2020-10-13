@@ -80,9 +80,10 @@ typedef struct chip8_t {
 	bool draw_flag;
 } chip8;
 
+void clear_display(chip8 *c);
 void initialize(chip8 *c);
 void execute(chip8 *c);
-void load_file(char *s);
+void load_file(const char *s);
 void set_keys(chip8 *c);
 
 #endif

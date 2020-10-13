@@ -15,12 +15,12 @@ void initialize(chip8 *c)
 	c->SP     = 0; // clear the stack pointer
 
 	clear_display(c);
-	// Clear stack
-	// Clear registers V0-VF
+	
 	for (int i = 0; i < 16; i++) {
-		c->stack[i] = 0;
-		c->V[i] = 0;
+		c->stack[i] = 0;  // Clear stack
+		c->V[i] = 0;      // Clear registers V0-VF
 	}
+
 	// Clear memory
 	for (int i = 0; i < 4096; i++) {
 		c->memory = 0;
@@ -44,7 +44,7 @@ void execute(chip8 *c)
 	switch (c->opcode & 0xF000) {
 		// 00E0 - CLS or 00EE - RET
 		case (0x0000):
-			if (c->opcode & 0x00E0 == 0x00E0) {
+			if (c->opcode & 0xFFFF == 0x00E0) {
 				// Clear the display
 				clear_display(c);
 				c->PC += 2;
@@ -102,13 +102,75 @@ void execute(chip8 *c)
 			break;
 		case (0x8000):
 			// 8xy0 - LD Vx, Vy
-			if (c->opcode & 0x800F == 0x8000) {
+			if (c->opcode & 0xF00F == 0x8000) {
 				c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
 			// 8xy1 - OR Vx, Vy
-			} else if (c->opcode & 0x800F == 0x8001) {
+			} else if (c->opcode & 0xF00F == 0x8001) {
 				c->V[c->opcode & 0x0F00 >> 8] |= c->V[c->opcode & 0x00F0 >> 4];
+			// 8xy2 - AND Vx, Vy
+			} else if (c->opcode & 0xF00F == 0x8002) {
+				c->V[c->opcode & 0x0F00 >> 8] &= c->V[c->opcode & 0x00F0 >> 4];
+			// 8xy3 - XOR Vx, Vy
+			} else if (c->opcode & 0xF00F == 0x8003) {
+				c->V[c->opcode & 0x0F00 >> 8] ^= c->V[c->opcode & 0x00F0 >> 4];
+			// 8xy4 - ADD Vx, Vy
+			} else if (c->opcode & 0xF00F == 0x8004) {
+				short short_sum = c->V[c->opcode & 0x0F00 >> 8] + c->V[c->opcode & 0x00F0 >> 4];
+
+				if (short_sum > 255) {
+					c->V[15] = 1;
+				} else {
+					c->V[15] = 0;
+				}
+
+				c->V[c->opcode & 0x0F00 >> 8] = short_sum & 0xFF;
+			// 8xy5 - SUB Vx, Vy
+			} else if (c->opcode & 0xF00F == 0x8005) {
+				if (c->V[c->opcode & 0x0F00 >> 8] > c->V[c->opcode & 0x00F0 >> 4]) {
+					c->V[15] = 1;
+				} else {
+					c->V[15] = 0;
+				}
+
+				c->V[c->opcode & 0x0F00 >> 8] -= c->V[c->opcode & 0x00F0 >> 4];
+			// 8xy6 - SHR Vx {, Vy}
+			} else if (c->opcode & 0xF00F == 0x8006) {
+				if (c->V[c->opcode & 0x0F00 >> 8] & 0x01 == 1) {
+					c->V[15] = 1;
+				} else {
+					c->V[15] = 0;
+				}
+
+				c->V[c->opcode & 0x00F0 >> 4] = c->V[c->opcode & 0x00F0 >> 4] >> 1;
+				c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
+			// 8xy7 - SUBN Vx, Vy
+			} else if (c->opcode & 0xF00F == 0x8007) {
+				if (c->V[c->opcode & 0x0F00 >> 8] < c->V[c->opcode & 0x00F0 >> 4]) {
+					c->V[15] = 1;
+				} else {
+					c->V[15] = 0;
+				}
+				c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4] - c->V[c->opcode & 0x0F00 >> 8];
+			// 8xyE - SHL Vx {, Vy}
+			} else if (c->opcode & 0xF00F == 0x800E) {
+				if (c->V[c->opcode & 0x0F00 >> 8] & 0x80 == 1) {
+					c->V[15] = 1;
+				} else {
+					c->V[15] = 0;
+				}
+
+				c->V[c->opcode & 0x00F0 >> 4] = c->V[c->opcode & 0x00F0 >> 4] << 1;
+				c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
 			}
 			c->PC += 2;
+			break;
+		// 9xy0 - SNE Vx, Vy
+		case (0x9000):
+			if (c->V[c->opcode & 0x0F00 >> 8] != c->V[c->opcode & 0x00F0 >> 4]) {
+				c->PC += 2;
+			}
+			c->PC += 2;
+			break;
 		// Annn - LD I, addr
 		case (0xA000):
 			c->I = c->opcode & 0x0FFF;
@@ -116,12 +178,15 @@ void execute(chip8 *c)
 			break;
 		// Bnnn - JP V0, addr
 		case (0xB000):
-			c->PC += c->opcode & 0x0FFF;
+			c->PC = c->V[0] + c->opcode & 0x0FFF;
 			break;
 		// Cxkk - RND Vx, byte
 		case (0xC000):
 			c->V[c->opcode & 0x0F00 >> 8] = (rand() % 256) & c->opcode & 0x00FF;
 			c->PC += 2;
+			break;
+		// Dxyn - DRW Vx, Vy, nibble
+		case (0xD000):
 			break;
 		default:
 			fprintf(stderr, "Invalid opcode %i at %i\n", c->opcode, c->PC);
@@ -129,6 +194,13 @@ void execute(chip8 *c)
 			break;
 	}
 
-	// Update timers	
+	// Update timers
+	if (c->DT > 0) {
+
+	}
+
+	if (c->ST > 0) {
+		
+	}
 }
 
