@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <SDL2/SDL.h>
+
 /* CHIP-8 memory map
  * -----------------
  *
@@ -37,7 +39,7 @@
 
 typedef struct chip8_t {
 	/* Initialize the memory (4096 bytes) */
-	unsigned char memory[MAX_MEMORY] = {0};
+	unsigned char memory[MAX_MEMORY];
 	/* Variable for storing the current opcode */
 	unsigned short opcode;
 	/* 16 8-bit general purpose registers, last one is instruction flag */
@@ -57,33 +59,18 @@ typedef struct chip8_t {
 	/* Display */
 	unsigned char display[W_WIDTH * W_HEIGHT];
 
-	/* Fontset data */
-	unsigned char fontset[80] = {
-		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-		0x20, 0x60, 0x20, 0x20, 0x70, // 1
-		0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-		0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-		0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-		0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-		0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-		0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-		0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-		0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-		0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-		0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-		0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-		0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-		0xF0, 0x80, 0xF0, 0x80, 0x80  // F
-	};
+	// SDL_TimerID delay, sound;
 
-	bool draw_flag;
+	char draw_flag;
 } chip8;
 
 void clear_display(chip8 *c);
 void initialize(chip8 *c);
-void execute(chip8 *c);
-void load_file(const char *s);
-void set_keys(chip8 *c);
+// void execute(chip8 *c);
+// void load_file(const char *s);
+// void set_keys(chip8 *c);
+// Uint32 delay_callback(Uint32 interval, void *param);
+// Uint32 sound_callback(Uint32 interval, void *param);
+
 
 #endif

@@ -7,6 +7,26 @@ void clear_display(chip8 *c)
 	}
 }
 
+/* Fontset data */
+unsigned char fontset[80] = {
+	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+};
+
 void initialize(chip8 *c)
 {
 	c->PC = 0x200; // programs start at 0x200
@@ -23,12 +43,12 @@ void initialize(chip8 *c)
 
 	// Clear memory
 	for (int i = 0; i < 4096; i++) {
-		c->memory = 0;
+		c->memory[i] = 0;
 	}
 
 	// Fontset data is stored at 0x50
 	for (int i = 0; i < 80; i++) {
-		memory[i + 0x50] = c->fontset[i];
+		c->memory[i + 0x50] = fontset[i];
 	}
 
 	// Reset timers
@@ -39,7 +59,7 @@ void initialize(chip8 *c)
 void execute(chip8 *c)
 {
 	// Merge two bytes to form a full instruction
-	c->opcode = c->memory[c->PC] << 8 | memory[c->PC + 1];
+	c->opcode = c->memory[c->PC] << 8 | c->memory[c->PC + 1];
 
 	switch (c->opcode & 0xF000) {
 		// 00E0 - CLS or 00EE - RET
@@ -60,13 +80,12 @@ void execute(chip8 *c)
 			break;
 		// 2nnn - CALL addr
 		case (0x2000):
+			c->stack[c->SP] = c->PC;
 			c->SP++;
 
 			if (c->SP > 15) {
 				fprintf(stderr, "Stack overflow\n");
 			}
-
-			c->stack[c->SP] = c->PC;
 			c->PC += 2;
 			break;
 		// 3xkk - SE Vx, byte
@@ -188,6 +207,49 @@ void execute(chip8 *c)
 		// Dxyn - DRW Vx, Vy, nibble
 		case (0xD000):
 			break;
+		case (0xF000):
+			// Fx07 - LD Vx, DT
+			if (c->opcode & 0xF0FF == 0xF007) {
+				c->V[c->opcode & 0x0F00 >> 8] = c->DT;
+			// Fx0A - LD Vx, K
+			} else if (c->opcode & 0xF0FF == 0xF00A) {
+				// Wait for a key press, store the value of the key in Vx.
+
+				// All execution stops until a key is pressed, then the value of that key is stored in Vx.
+			// Fx15 - LD DT, Vx
+			} else if (c->opcode & 0xF015 == 0xF015) {
+				c->DT = c->V[c->opcode & 0x0F00 >> 8];
+			// Fx18 - LD ST, Vx
+			} else if (c->opcode & 0xF018 == 0xF018) {
+				c->ST = c->V[c->opcode & 0x0F00 >> 8];
+			// Fx1E - ADD I, Vx
+			} else if (c->opcode & 0xF01E == 0xF01E) {
+				c->memory[c->I] += c->V[c->opcode & 0x0F00 >> 8];
+			// Fx29 - LD F, Vx
+			} else if (c->opcode & 0xF029 == 0xF029) {
+				c->I = 0x50 + (c->opcode & 0x0F00) >> 8 * 5;
+			// Fx33 - LD B, Vx
+			} else if (c->opcode & 0xF033 == 0xF033) {
+				int n = c->V[c->opcode & 0x0F00 >> 8];
+				char h = (n / 100) % 10, t = (n / 10) % 10, o = n % 10; 
+
+				c->memory[c->I] = h;
+				c->memory[c->I+1] = t;
+				c->memory[c->I+2] = o;
+			// Fx55 - LD [I], Vx
+			} else if (c->opcode & 0xF055 == 0xF055) {
+				for (int i = 0; i < (c->opcode & 0x0F00 >> 8); i++) {
+					c->memory[c->I + i] = c->V[i];
+				}
+			// Fx65 - LD Vx, [I]
+			} else if (c->opcode & 0xF065 == 0xF065) {
+				for (int i = 0; i < (c->opcode & 0x0F00 >> 8); i++) {
+					c->V[i] = c->memory[c->I + i];
+				}
+			}
+
+			c->PC += 2;
+			break;
 		default:
 			fprintf(stderr, "Invalid opcode %i at %i\n", c->opcode, c->PC);
 			exit(1);
@@ -195,12 +257,17 @@ void execute(chip8 *c)
 	}
 
 	// Update timers
-	if (c->DT > 0) {
+	// if (c->DT > 0 && SDL_GetTicks() % 16 == 0) {
+	// 	c->DT--;
+	// } else {
+	// 	c->DT = 0;
+	// }
 
-	}
-
-	if (c->ST > 0) {
-		
-	}
+	// if (c->ST > 0 && SDL_GetTicks() % 16 == 0) {
+	// 	fprintf(stdout, "\aBeep!\n");
+	// 	c->ST--;
+	// } else {
+	// 	c->ST = 0;
+	// }
 }
 
