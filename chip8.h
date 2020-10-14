@@ -37,6 +37,9 @@
 #define W_WIDTH      64
 #define W_HEIGHT     32
 
+/* Fontset data */
+extern unsigned char fontset[];
+
 typedef struct chip8_t {
 	/* Initialize the memory (4096 bytes) */
 	unsigned char memory[MAX_MEMORY];
@@ -53,7 +56,7 @@ typedef struct chip8_t {
 	/* Stack */
 	unsigned short stack[16];
 	/* Hexadecimal keypad */
-	unsigned char key[16];
+	unsigned char keys[16];
 	/* Delay and sound timer */
 	unsigned char DT, ST;
 	/* Display */
@@ -62,12 +65,13 @@ typedef struct chip8_t {
 	// SDL_TimerID delay, sound;
 
 	char draw_flag;
+	char pause;
 } chip8;
 
 void clear_display(chip8 *c);
 void initialize(chip8 *c);
-// void execute(chip8 *c);
-// void load_file(const char *s);
+void execute(chip8 *c);
+void load_file(chip8 *c, const char *s);
 // void set_keys(chip8 *c);
 // Uint32 delay_callback(Uint32 interval, void *param);
 // Uint32 sound_callback(Uint32 interval, void *param);
