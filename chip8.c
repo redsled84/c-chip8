@@ -56,16 +56,16 @@ void initialize(chip8 *c)
     c->ST = 0;
 }
 
-/*
-TODO:
------
-
-Dxyn - DRW Vx, Vy, nibble
-*/
 void execute(chip8 *c)
 {
-    // Merge two bytes to form a full instruction
+    // form a two byte instruction via bit manipulation
     c->opcode = c->memory[c->PC] << 8 | c->memory[c->PC + 1];
+
+    int first_param  = c->opcode & 0x0F00 >> 8;
+    int second_param = c->opcode & 0x00F0 >> 4;
+
+    // lmao this is my debugger
+    printf("%x\n", c->opcode);
 
     switch (c->opcode & 0xF000) {
         // 00E0 - CLS or 00EE - RET
@@ -104,7 +104,7 @@ void execute(chip8 *c)
         // 3xkk - SE Vx, byte
         case (0x3000):
         {
-            if (c->V[c->opcode & 0x0F00 >> 8] == c->opcode & 0x00FF) {
+            if (c->V[first_param] == c->opcode & 0x00FF) {
                 c->PC += 2;
             }
             c->PC += 2;
@@ -113,7 +113,7 @@ void execute(chip8 *c)
         // 4xkk - SNE Vx, byte
         case (0x4000):
         {
-            if (c->V[c->opcode & 0x0F00 >> 8] != c->opcode & 0x00FF) {
+            if (c->V[first_param] != c->opcode & 0x00FF) {
                 c->PC += 2;
             }
             c->PC += 2;
@@ -122,7 +122,7 @@ void execute(chip8 *c)
         // 5xy0 - SE Vx, Vy
         case (0x5000):
         {
-            if (c->V[c->opcode & 0x0F00 >> 8] == c->V[c->opcode & 0x00F0 >> 4]) {
+            if (c->V[first_param] == c->V[second_param]) {
                 c->PC += 2;
             }
             c->PC += 2;
@@ -131,14 +131,14 @@ void execute(chip8 *c)
         // 6xkk - LD Vx, byte
         case (0x6000):
         {
-            c->V[c->opcode & 0x0F00 >> 8] = c->opcode & 0x00FF;
+            c->V[first_param] = c->opcode & 0x00FF;
             c->PC += 2;
             break;
         }
         // 7xkk - ADD Vx, byte
         case (0x7000):
         {
-            c->V[c->opcode & 0x0F00 >> 8] += c->opcode & 0x00FF;
+            c->V[first_param] += c->opcode & 0x00FF;
             c->PC += 2;
             break;
         }
@@ -146,19 +146,19 @@ void execute(chip8 *c)
         {
             // 8xy0 - LD Vx, Vy
             if (c->opcode & 0xF00F == 0x8000) {
-                c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
+                c->V[first_param] = c->V[second_param];
             // 8xy1 - OR Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8001) {
-                c->V[c->opcode & 0x0F00 >> 8] |= c->V[c->opcode & 0x00F0 >> 4];
+                c->V[first_param] |= c->V[second_param];
             // 8xy2 - AND Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8002) {
-                c->V[c->opcode & 0x0F00 >> 8] &= c->V[c->opcode & 0x00F0 >> 4];
+                c->V[first_param] &= c->V[second_param];
             // 8xy3 - XOR Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8003) {
-                c->V[c->opcode & 0x0F00 >> 8] ^= c->V[c->opcode & 0x00F0 >> 4];
+                c->V[first_param] ^= c->V[second_param];
             // 8xy4 - ADD Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8004) {
-                short short_sum = c->V[c->opcode & 0x0F00 >> 8] + c->V[c->opcode & 0x00F0 >> 4];
+                short short_sum = c->V[first_param] + c->V[second_param];
 
                 if (short_sum > 255) {
                     c->V[15] = 1;
@@ -166,44 +166,44 @@ void execute(chip8 *c)
                     c->V[15] = 0;
                 }
 
-                c->V[c->opcode & 0x0F00 >> 8] = short_sum & 0xFF;
+                c->V[first_param] = short_sum & 0xFF;
             // 8xy5 - SUB Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8005) {
-                if (c->V[c->opcode & 0x0F00 >> 8] > c->V[c->opcode & 0x00F0 >> 4]) {
+                if (c->V[first_param] > c->V[second_param]) {
                     c->V[15] = 1;
                 } else {
                     c->V[15] = 0;
                 }
 
-                c->V[c->opcode & 0x0F00 >> 8] -= c->V[c->opcode & 0x00F0 >> 4];
+                c->V[first_param] -= c->V[second_param];
             // 8xy6 - SHR Vx {, Vy}
             } else if (c->opcode & 0xF00F == 0x8006) {
-                if (c->V[c->opcode & 0x0F00 >> 8] & 0x01 == 1) {
+                if (c->V[first_param] & 0x01 == 1) {
                     c->V[15] = 1;
                 } else {
                     c->V[15] = 0;
                 }
 
-                c->V[c->opcode & 0x00F0 >> 4] = c->V[c->opcode & 0x00F0 >> 4] >> 1;
-                c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
+                c->V[second_param] = c->V[second_param] >> 1;
+                c->V[first_param] = c->V[second_param];
             // 8xy7 - SUBN Vx, Vy
             } else if (c->opcode & 0xF00F == 0x8007) {
-                if (c->V[c->opcode & 0x0F00 >> 8] < c->V[c->opcode & 0x00F0 >> 4]) {
+                if (c->V[first_param] < c->V[second_param]) {
                     c->V[15] = 1;
                 } else {
                     c->V[15] = 0;
                 }
-                c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4] - c->V[c->opcode & 0x0F00 >> 8];
+                c->V[first_param] = c->V[second_param] - c->V[first_param];
             // 8xyE - SHL Vx {, Vy}
             } else if (c->opcode & 0xF00F == 0x800E) {
-                if (c->V[c->opcode & 0x0F00 >> 8] & 0x80 == 1) {
+                if (c->V[first_param] & 0x80 == 1) {
                     c->V[15] = 1;
                 } else {
                     c->V[15] = 0;
                 }
 
-                c->V[c->opcode & 0x00F0 >> 4] = c->V[c->opcode & 0x00F0 >> 4] << 1;
-                c->V[c->opcode & 0x0F00 >> 8] = c->V[c->opcode & 0x00F0 >> 4];
+                c->V[second_param] = c->V[second_param] << 1;
+                c->V[first_param] = c->V[second_param];
             }
 
             c->PC += 2;
@@ -212,7 +212,7 @@ void execute(chip8 *c)
         // 9xy0 - SNE Vx, Vy
         case (0x9000):
         {
-            if (c->V[c->opcode & 0x0F00 >> 8] != c->V[c->opcode & 0x00F0 >> 4]) {
+            if (c->V[first_param] != c->V[second_param]) {
                 c->PC += 2;
             }
 
@@ -235,28 +235,29 @@ void execute(chip8 *c)
         // Cxkk - RND Vx, byte
         case (0xC000):
         {
-            c->V[c->opcode & 0x0F00 >> 8] = (rand() % 256) & c->opcode & 0x00FF;
+            c->V[first_param] = (rand() % 256) & c->opcode & 0x00FF;
             c->PC += 2;
             break;
         }
         // Dxyn - DRW Vx, Vy, nibble
         case (0xD000):
         {
-            int x  = c->V[c->opcode & 0x0F00 >> 8];
-            int y  = c->V[c->opcode & 0x00F0];
+            int x  = c->V[first_param];
+            int y  = c->V[second_param];
             char h = c->opcode & 0x000F;
 
-            for (int draw_y = y; draw_y < y + h; draw_y++) {
+            for (int draw_y = 0; draw_y < h; draw_y++) {
                 char data = c->memory[c->I + draw_y];
-                for (int draw_x = x; x < x + 8; draw_x++) {
+
+                for (int draw_x = 0; draw_x < 8; draw_x++) {
                     char bit_value = data & (0x80 >> draw_x);
-                    if (bit_value) {
+                    if (bit_value != 0) {
                         if (c->display[x + draw_x + (y + draw_y) * W_HEIGHT]) {
                             c->V[15] = 1;
                         } else {
                             c->V[15] = 0;
                         }
-                        c->display[x + draw_x + (y + draw_y) * W_HEIGHT] ^= bit_value;
+                        c->display[x + draw_x + (y + draw_y) * W_HEIGHT] ^= 1;
                     }
                 }
             }
@@ -267,10 +268,10 @@ void execute(chip8 *c)
         case (0xE000):
         {
             // Ex9E - SKP Vx
-            if (c->opcode & 0xF0FF == 0xE09E && c->keys[c->V[c->opcode & 0x0F00 >> 8]]) {
+            if (c->opcode & 0xF0FF == 0xE09E && c->keys[c->V[first_param]]) {
                 c->PC += 2;
             // ExA1 - SKNP Vx
-            } else if (c->opcode & 0xF0FF == 0xE0A1 && !c->keys[c->V[c->opcode & 0x0F00 >> 8]]) {
+            } else if (c->opcode & 0xF0FF == 0xE0A1 && !c->keys[c->V[first_param]]) {
                 c->PC += 2;
             }
 
@@ -281,7 +282,7 @@ void execute(chip8 *c)
         {
             // Fx07 - LD Vx, DT
             if (c->opcode & 0xF0FF == 0xF007) {
-                c->V[c->opcode & 0x0F00 >> 8] = c->DT;
+                c->V[first_param] = c->DT;
 
                 c->PC += 2;
             // Fx0A - LD Vx, K
@@ -293,7 +294,7 @@ void execute(chip8 *c)
                 for (int i = 0; i < 16; i++) {
                     if (c->keys[i]) {
                         c->pause = 0;
-                        c->V[c->opcode & 0x0F00 >> 8] = i;
+                        c->V[first_param] = i;
                         break;
                     }
                 }
@@ -303,17 +304,17 @@ void execute(chip8 *c)
                 }
             // Fx15 - LD DT, Vx
             } else if (c->opcode & 0xF015 == 0xF015) {
-                c->DT = c->V[c->opcode & 0x0F00 >> 8];
+                c->DT = c->V[first_param];
 
                 c->PC += 2;
             // Fx18 - LD ST, Vx
             } else if (c->opcode & 0xF018 == 0xF018) {
-                c->ST = c->V[c->opcode & 0x0F00 >> 8];
+                c->ST = c->V[first_param];
 
                 c->PC += 2;
             // Fx1E - ADD I, Vx
             } else if (c->opcode & 0xF01E == 0xF01E) {
-                c->memory[c->I] += c->V[c->opcode & 0x0F00 >> 8];
+                c->memory[c->I] += c->V[first_param];
 
                 c->PC += 2;
             // Fx29 - LD F, Vx
@@ -323,7 +324,7 @@ void execute(chip8 *c)
                 c->PC += 2;
             // Fx33 - LD B, Vx
             } else if (c->opcode & 0xF033 == 0xF033) {
-                int n = c->V[c->opcode & 0x0F00 >> 8];
+                int n = c->V[first_param];
                 char h = (n / 100) % 10, t = (n / 10) % 10, o = n % 10; 
 
                 c->memory[c->I] = h;
@@ -333,14 +334,14 @@ void execute(chip8 *c)
                 c->PC += 2;
             // Fx55 - LD [I], Vx
             } else if (c->opcode & 0xF055 == 0xF055) {
-                for (int i = 0; i < (c->opcode & 0x0F00 >> 8); i++) {
+                for (int i = 0; i < (first_param); i++) {
                     c->memory[c->I + i] = c->V[i];
                 }
 
                 c->PC += 2;
             // Fx65 - LD Vx, [I]
             } else if (c->opcode & 0xF065 == 0xF065) {
-                for (int i = 0; i < (c->opcode & 0x0F00 >> 8); i++) {
+                for (int i = 0; i < (first_param); i++) {
                     c->V[i] = c->memory[c->I + i];
                 }
 
@@ -384,20 +385,15 @@ void load_file(chip8 *c, const char *filename)
     }
 
     int temp = 0x200;
-    short in[8];
-    while (fscanf(fp, "%c %c %c %c %c %c %c %c\n",
-      in[0], in[1], in[2], in[3], in[4], in[5], in[6], in[7]) != EOF) {
-        for (int i = 0; i < 8; i++) {
-            char high = in[i] & 0xFF00 >> 4;
+    int in = 0;
+    while (fscanf(fp, "%4x", &in) != EOF) {
+        char high = (in >> 8);
+        char low  = in & 0xFF;
 
-            c->memory[temp] = high;
+        c->memory[temp] = high & 0xFF;
+        c->memory[temp+1] = low & 0xFF;
 
-            char low  = in[i] & 0xFF;
-
-            c->memory[temp+2] = low;
-
-            temp += 4;
-        }
+        temp+=2;
     }
 
     fclose(fp);

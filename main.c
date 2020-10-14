@@ -15,6 +15,11 @@ int main(int argc, char **argv)
     initialize(c);
     load_file(c, "demo.ch8");
 
+    for (int i = 0x200; i < 0x200 + 100; i++) {
+        // printf("%x\n", c->memory[i]);
+    }
+
+
     SDL_Window* window = NULL;
     SDL_Surface* screen_surface = NULL;
 
@@ -169,7 +174,7 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
         }
 
         // execute the chip-8 interpreter
-        if (!c->pause) {
+        if (c->pause == 0) {
             execute(c);
         }
 
