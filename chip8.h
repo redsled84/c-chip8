@@ -41,31 +41,31 @@
 extern unsigned char fontset[];
 
 typedef struct chip8_t {
-	/* Initialize the memory (4096 bytes) */
-	unsigned char memory[MAX_MEMORY];
-	/* Variable for storing the current opcode */
-	unsigned short opcode;
-	/* 16 8-bit general purpose registers, last one is instruction flag */
-	unsigned char  V[16];
-	/* Register for storing memory addresses */
-	unsigned short I;
-	/* Program counter (currently executing instruction) */
-	unsigned short PC;
-	/* Stack pointer */
-	unsigned char  SP;
-	/* Stack */
-	unsigned short stack[16];
-	/* Hexadecimal keypad */
-	unsigned char keys[16];
-	/* Delay and sound timer */
-	unsigned char DT, ST;
-	/* Display */
-	unsigned char display[W_WIDTH * W_HEIGHT];
+    /* Initialize the memory (4096 bytes) */
+    unsigned char memory[MAX_MEMORY];
+    /* Variable for storing the current opcode */
+    unsigned short opcode;
+    /* 16 8-bit general purpose registers, last one is instruction flag */
+    unsigned char  V[16];
+    /* Register for storing memory addresses */
+    unsigned short I;
+    /* Program counter (currently executing instruction) */
+    unsigned short PC;
+    /* Stack pointer */
+    unsigned char  SP;
+    /* Stack */
+    unsigned short stack[16];
+    /* Hexadecimal keypad */
+    unsigned char keys[16];
+    /* Delay and sound timer */
+    unsigned char DT, ST;
+    /* Display */
+    unsigned char display[W_WIDTH * W_HEIGHT];
 
-	// SDL_TimerID delay, sound;
+    // SDL_TimerID delay, sound;
 
-	char draw_flag;
-	char pause;
+    char draw_flag;
+    char pause;
 } chip8;
 
 void clear_display(chip8 *c);
