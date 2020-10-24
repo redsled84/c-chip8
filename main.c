@@ -6,6 +6,25 @@ const int SCREEN_SCALE = 10;
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 320;
 
+const int hex_keypad[16] = {
+    SDLK_COMMA,
+    SDLK_7,
+    SDLK_8,
+    SDLK_9,
+    SDLK_u,
+    SDLK_i,
+    SDLK_o,
+    SDLK_j,
+    SDLK_k,
+    SDLK_l,
+    SDLK_m,
+    SDLK_PERIOD,
+    SDLK_0,
+    SDLK_p,
+    SDLK_SEMICOLON,
+    SDLK_SLASH
+};
+
 void game_loop(SDL_Window *, SDL_Surface *, SDL_Rect *, chip8 *);
 
 int main(int argc, char **argv)
@@ -13,11 +32,11 @@ int main(int argc, char **argv)
     chip8 *c = malloc(sizeof(chip8));
 
     initialize(c);
-    load_file(c, "demo.ch8");
+    load_file(c, "TETRIS");
 
     for (int i = 0x200; i < 0x200 + 100; i++) {
         // printf("%x\n", c->memory[i]);
-    }
+    } 
 
 
     SDL_Window* window = NULL;
@@ -69,8 +88,10 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
 
     SDL_Event e;
 
+    int counter = 0;
+
     // begin game loop
-    while (!quit) {
+    while (!quit && counter < 32) {
         // sdl event queue
         while (SDL_PollEvent( &e ) != 0) {
             // quit
@@ -80,94 +101,14 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
             } else if (e.type == SDL_KEYDOWN) {
                 for (int i = 0; i < 16; i++) {
                     c->keys[i] = 0;
-                }
 
-                switch (e.key.keysym.sym) {
                     // hexadecimal key mapping (key -> index/value)
                     /* "7" => 1, "8" => 2, "9" => 3, "u" => 4, "i" => 5, "o" => 6, "j" => 7,
                      * "k" => 8, "l" => 9, "," => 0, "m" => A, "." => B, "0" => C, "p" => D,
                      * ";" => E, "/" => F
                      */
-
-                    case SDLK_7:
-                    {
-                        c->keys[0x1] = 1;
-                    break;
-                    }
-                    case SDLK_8:
-                    {
-                        c->keys[0x2] = 1;
-                    break;
-                    }
-                    case SDLK_9:
-                    {
-                        c->keys[0x3] = 1;
-                    break;
-                    }
-                    case SDLK_u:
-                    {
-                        c->keys[0x4] = 1;
-                    break;
-                    }
-                    case SDLK_i:
-                    {
-                        c->keys[0x5] = 1;
-                    break;
-                    }
-                    case SDLK_o:
-                    {
-                        c->keys[0x6] = 1;
-                    break;
-                    }
-                    case SDLK_j:
-                    {
-                        c->keys[0x7] = 1;
-                    break;
-                    }
-                    case SDLK_k:
-                    {
-                        c->keys[0x8] = 1;
-                    break;
-                    }
-                    case SDLK_l:
-                    {
-                        c->keys[0x9] = 1;
-                    break;
-                    }
-                    case SDLK_COMMA:
-                    {
-                        c->keys[0x0] = 1;
-                    break;
-                    }
-                    case SDLK_m:
-                    {
-                        c->keys[0xA] = 1;
-                    break;
-                    }
-                    case SDLK_PERIOD:
-                    {
-                        c->keys[0xB] = 1;
-                    break;
-                    }
-                    case SDLK_0:
-                    {
-                        c->keys[0xC] = 1;
-                    break;
-                    }
-                    case SDLK_p:
-                    {
-                        c->keys[0xD] = 1;
-                    break;
-                    }
-                    case SDLK_SEMICOLON:
-                    {
-                        c->keys[0xE] = 1;
-                    break;
-                    }
-                    case SDLK_SLASH:
-                    {
-                        c->keys[0xF] = 1;
-                    break;
+                    if (e.key.keysym.sym == hex_keypad[i]) {
+                        c->keys[i] = 1;
                     }
                 }
             }
@@ -189,5 +130,6 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
 
         // draw rects to the surface
         SDL_UpdateWindowSurface( window );
+        counter++;
     }
 }

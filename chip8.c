@@ -1,5 +1,243 @@
 #include "chip8.h"
 
+/* Fontset data 
+extern unsigned char fontset[];
+
+typedef struct chip8_t {
+    * Initialize the memory (4096 bytes) 
+    unsigned char memory[MAX_MEMORY];
+    * Variable for storing the current opcode (2 bytes)
+    unsigned short opcode;
+    * 16 8-bit general purpose registers, last register is the instruction flag
+    unsigned char  V[16];
+    * Register for indexing memory addresses
+    unsigned short I;
+    * Program counter (current instruction being executed)
+    unsigned char PC;
+    * Stack pointer
+    unsigned char SP;
+    * Stack
+    unsigned short stack[16];
+    * Hexadecimal keypad 
+    unsigned char keys[16];
+    * Delay and sound timer
+    unsigned char DT, ST;
+    * Display
+    unsigned char display[W_WIDTH * W_HEIGHT];
+
+    char pause;
+} chip8;
+*/
+
+/* Main operations */
+void clear_display(chip8 *c)
+{
+    for (int i = 0; i < W_WIDTH * W_HEIGHT; i++) {
+        c->display[i] = 0;
+    }
+}
+
+void initialize(chip8 *c);
+void execute_instruction(chip8 *c)
+{
+    c->opcode = c->memory[c->PC] << 8 | c->memory[c->PC + 1];
+
+    switch(c->opcode & 0xF000) {
+        case 0x0000: {
+            // 00E0 - clear the display
+            if (c->opcode & 0xFFFF == 0x00E0) {
+                clear_display(c);
+            // 00EE - return from a subroutine
+            } else if (c->opcode & 0xFFFF == 0x00EE) {
+                set_pc(c, get_stack_top(c));
+                stack_pop(c);
+            }
+            break;
+        }
+        // 1nnn - jump to nnn
+        case 0x1000: {
+            set_pc(c, get_opcode_nnn(c));
+            break;
+        }
+        // 2nnn - call subroutine at nnn
+        case 0x2000: {
+            stack_push(c, get_pc(c));
+            set_pc(c, get_opcode_nnn(c));
+            break;
+        }
+        // 3xkk - skip next instruction if Vx = kk
+        case 0x3000: {
+            if (get_opcode_x(c) == get_opcode_kk(c)) {
+                pc_increment(c);
+            }
+            break;
+        }
+        // 4xkk - skip next instruction if Vx != kk
+        case 0x4000: {
+            if (get_opcode_x(c) != get_opcode_kk(c)) {
+                pc_increment(c);
+            }
+            break;
+        }
+        // 5xy0 - skip next instruction if Vx = Vy
+        case 0x5000: {
+            if (get_opcode_x(c) == get_opcode_y(c)) {
+                pc_increment(c);
+            }
+            break;
+        }
+        // 6xkk - puts the value kk into register Vx
+        case 0x6000: {
+            set_reg_value(c, get_opcode_x(c), get_opcode_kk(c));
+            break;
+        }
+        case 0x7000: {
+            
+        }
+    }
+}
+void load_file(chip8 *c, const char *s);
+
+/* Getters */
+char  get_reg_value(chip8 *c, int i)
+{
+    return c->V[i]; 
+}
+
+char  get_addr(chip8 *c)
+{
+    return c->I;
+}
+
+char  get_addr_value(chip8 *c)
+{
+    return c->memory[get_address(c)];
+}
+
+short get_pc(chip8 *c)
+{
+    return c->PC;
+}
+
+short get_stack_top(chip8 *c)
+{
+    return c->stack[c->SP];
+}
+
+char  get_display_value(chip8 *c, int x, int y)
+{
+    return c->display[x + y * W_WIDTH];
+}
+
+char *get_keys(chip8 *c)
+{
+    return c->keys;
+}
+
+char  get_key_value(chip8 *c, int i)
+{
+    return c->keys[i];
+}
+
+short get_opcode(chip8 *c)
+{
+    return c->opcode;
+}
+
+short get_opcode_nnn(chip8 *c)
+{
+    return c->opcode & 0x0FFF;
+}
+
+char  get_opcode_x(chip8 *c)
+{
+    return c->opcode & 0x0F00 >> 8;
+}
+
+char  get_opcode_y(chip8 *c)
+{
+    return c->opcode & 0x00F0 >> 4;
+}
+
+char  get_opcode_kk(chip8 *c)
+{
+    return c->opcode & 0xFF;
+}
+
+char  get_dt(chip8 *c)
+{
+    return c->DT;
+}
+
+char  get_st(chip8 *c)
+{
+    return c->ST;
+}
+
+/* Setters */
+void set_reg_value(chip8 *c, int i, char n)
+{
+    c->V[i] = n;
+}
+
+void set_addr_value(chip8 *c, char n)
+{
+    c->memory[get_addr(c)] = n;
+}
+
+void set_addr(chip8 *c, short i)
+{
+    c->I = i;
+}
+
+void set_pc(chip8 *c, short n)
+{
+    c->PC = n;
+}
+
+void pc_increment(chip8 *c)
+{
+    c->PC += 2;
+}
+
+void sp_increment(chip8 *c)
+{
+    c->SP++;
+}
+
+void sp_decrement(chip8 *c)
+{
+    c->SP--;
+}
+
+void stack_pop(chip8 *c)
+{
+    c->stack[get_sp(c)] = 0;
+    sp_decrement(c);
+}
+
+void stack_push(chip8 *c, short n)
+{
+    sp_increment(c);
+    c->stack[get_sp(c)] = n;
+}
+
+void set_key_value(chip8 *c, int i, char n)
+{
+    c->keys[i] = n;
+}
+
+void set_dt(chip8 *c, char n)
+{
+    c->DT = n;
+}
+
+void set_st(chip8 *c, char n)
+{
+    c->ST = n;
+}
+
+/*
 unsigned char fontset[80] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -398,3 +636,4 @@ void load_file(chip8 *c, const char *filename)
 
     fclose(fp);
 }
+*/
