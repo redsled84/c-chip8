@@ -1,34 +1,5 @@
 #include "chip8.h"
 
-/* Fontset data 
-extern unsigned char fontset[];
-
-typedef struct chip8_t {
-    * Initialize the memory (4096 bytes) 
-    unsigned char memory[MAX_MEMORY];
-    * Variable for storing the current opcode (2 bytes)
-    unsigned short opcode;
-    * 16 8-bit general purpose registers, last register is the instruction flag
-    unsigned char  V[16];
-    * Register for indexing memory addresses
-    unsigned short I;
-    * Program counter (current instruction being executed)
-    unsigned char PC;
-    * Stack pointer
-    unsigned char SP;
-    * Stack
-    unsigned short stack[16];
-    * Hexadecimal keypad 
-    unsigned char keys[16];
-    * Delay and sound timer
-    unsigned char DT, ST;
-    * Display
-    unsigned char display[W_WIDTH * W_HEIGHT];
-
-    char pause;
-} chip8;
-*/
-
 /* Main operations */
 void clear_display(chip8 *c)
 {
@@ -38,6 +9,13 @@ void clear_display(chip8 *c)
 }
 
 void initialize(chip8 *c);
+
+/* possible idea: modulate the execution loop by 
+ *                creating a method for each instruction.
+ *
+ *                that way the switch case won't be taking
+ *                up the entire screen.
+ */
 void execute_instruction(chip8 *c)
 {
     c->opcode = c->memory[c->PC] << 8 | c->memory[c->PC + 1];
@@ -47,8 +25,9 @@ void execute_instruction(chip8 *c)
             // 00E0 - clear the display
             if (c->opcode & 0xFFFF == 0x00E0) {
                 clear_display(c);
+            }
             // 00EE - return from a subroutine
-            } else if (c->opcode & 0xFFFF == 0x00EE) {
+            else if (c->opcode & 0xFFFF == 0x00EE) {
                 set_pc(c, get_stack_top(c));
                 stack_pop(c);
             }
@@ -67,21 +46,21 @@ void execute_instruction(chip8 *c)
         }
         // 3xkk - skip next instruction if Vx = kk
         case 0x3000: {
-            if (get_opcode_x(c) == get_opcode_kk(c)) {
+            if (get_reg_value(c, get_opcode_x(c)) == get_opcode_kk(c)) {
                 pc_increment(c);
             }
             break;
         }
         // 4xkk - skip next instruction if Vx != kk
         case 0x4000: {
-            if (get_opcode_x(c) != get_opcode_kk(c)) {
+            if (get_reg_value(c, get_opcode_x(c)) != get_opcode_kk(c)) {
                 pc_increment(c);
             }
             break;
         }
         // 5xy0 - skip next instruction if Vx = Vy
         case 0x5000: {
-            if (get_opcode_x(c) == get_opcode_y(c)) {
+            if (get_reg_value(c, get_opcode_x(c)) == get_reg_value(c, get_opcode_y(c))) {
                 pc_increment(c);
             }
             break;
@@ -91,87 +70,336 @@ void execute_instruction(chip8 *c)
             set_reg_value(c, get_opcode_x(c), get_opcode_kk(c));
             break;
         }
+        // 7xy0 - adds Vx and Vy and stores it in Vx
         case 0x7000: {
-            
+            char a = get_reg_value(c, get_opcode_x(c));
+            char b = get_reg_value(c, get_opcode_y(c));
+
+            set_reg_value(c, a, (a + b) % 256);
+            break;
         }
+        case 0x8000: {
+            unsigned char a = get_reg_value(c, get_opcode_x(c));
+            unsigned char b = get_reg_value(c, get_opcode_y(c));
+
+            // 8xy0 - load Vy into Vx, Vx = Vy
+            if (test_opcode(c, 0x000F, 0)) {
+                set_reg_value(c, get_opcode_x(c), b);
+            }
+            // 8xy1 - bitwise OR, Vx = Vx | Vy
+            else if (test_opcode(c, 0x000F, 1)) {
+                set_reg_value(c, get_opcode_x(c), a | b);
+            }
+            // 8xy2 - bitwise AND, Vx = Vx & Vy
+            else if (test_opcode(c, 0x000F, 2)) {
+                set_reg_value(c, get_opcode_x(c), a & b);
+            }
+            // 8xy3 - bitwise XOR, Vx = Vx ^ Vy
+            else if (test_opcode(c, 0x000F, 3)) {
+                set_reg_value(c, get_opcode_x(c), a ^ b);
+            }
+            // 8xy4 - bitwise ADD, Vx = Vx + Vy, VF = carry
+            else if (test_opcode(c, 0x000F, 4)) {
+                if (a + b >= 256) {
+                    set_reg_value(c, 0xF, 1);
+                } else {
+                    set_reg_value(c, 0xF, 0);
+                }
+                set_reg_value(c, get_opcode_x(c), (a + b) % 256);
+            }
+            // 8xy5 - bitwise SUB, Vx = Vx - Vy, VF = not borrow
+            else if (test_opcode(c, 0x000F, 5)) {
+                // check the carry flag
+                if (a > b) {
+                    set_reg_value(c, 0xF, 1);
+                } else {
+                    set_reg_value(c, 0xF, 0);
+                }
+                set_reg_value(c, get_opcode_x(c), a - b); // set Vx = Vx - Vy
+            }
+            // 8xy6 - bitwise SHR, Vx = Vx >> 1, VF = 1 if LSB is 1
+            else if (test_opcode(c, 0x000F, 6)) {
+                if (a & 0x1 == 1) {
+                    set_reg_value(c, 0xF, 1);
+                } else {
+                    set_reg_value(c, 0xF, 0);
+                }
+
+                set_reg_value(c, get_opcode_x(c), a >> 1);
+            }
+            // 8xy7 - bitwise SUBN, Vx = Vy - Vx, VF = 1 if Vy > Vx
+            else if (test_opcode(c, 0x000F, 7)) {
+                if (b > a) {
+                    set_reg_value(c, 0xF, 1);
+                } else {
+                    set_reg_value(c, 0xF, 0);
+                }
+
+                set_reg_value(c, get_opcode_x(c), b - a);
+            }
+            // 8xyE - bitwise SHL, Vx = Vx << 1, VF = 1 if MSB is 1
+            else if (test_opcode(c, 0x000F, 0xE)) {
+                if (a & 0x80 == 1) {
+                    set_reg_value(c, 0x000F, 1);
+                } else {
+                    set_reg_value(c, 0x000F, 0);
+                }
+
+                set_reg_value(c, get_opcode_x(c), a << 1);
+            }
+
+            break;
+        }
+        // 9xy0 - skip next instruction if Vx != Vy
+        case 0x9000: {
+            if (get_reg_value(c, get_opcode_x(c)) != get_reg_value(c, get_opcode_y(c))) {
+                pc_increment(c);
+            }
+
+            break;
+        }
+        // Annn - load nnn into register I
+        case 0xA000: {
+            set_addr(c, get_opcode_nnn(c));
+
+            break;
+        }
+        // Bnnn - jump to location nnn + V0
+        case 0xB000: {
+            set_pc(c, (get_opcode_nnn(c) + get_reg_value(c, 0)) % MAX_MEMORY);
+
+            break;
+        }
+        // Cxkk - random byte bitwise AND, Vx = Vx AND rand_byte
+        case 0xC000: {
+            char n = rand() % 256;
+            set_reg_value(c, get_opcode_x(c), get_opcode_x(c) & n);
+
+            break;
+        }
+        /*
+        Dxyn - DRW Vx, Vy, nibble
+        Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+
+        The interpreter reads n bytes from memory, starting at the address stored in I. These bytes
+        are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the
+        existing screen. If this causes any pixels to be erased, VF is set to 1, otherwise it is set
+        to 0. If the sprite is positioned so part of it is outside the coordinates of the display,
+        it wraps around to the opposite side of the screen.
+        */
+        case 0xD000: {
+            char n = c->opcode & 0xF;
+            char x = get_reg_value(c, get_opcode_x(c));
+            char y = get_reg_value(c, get_opcode_y(c));
+
+            char pos_x[8] = {
+                 x,
+                (x + 1) % W_WIDTH,
+                (x + 2) % W_WIDTH,
+                (x + 3) % W_WIDTH,
+                (x + 4) % W_WIDTH,
+                (x + 5) % W_WIDTH,
+                (x + 6) % W_WIDTH,
+                (x + 7) % W_WIDTH
+            };
+
+            // iterate over n-bytes of the sprite in memory
+            for (int i = get_addr(c); i < get_addr(c) + n; i++) {
+                char sprite_data = c->memory[i];
+                bool collision = 0;
+
+                // the width of a fontset sprite is always 8 bits in Chip-8
+                collision = set_display_value(c, pos_x[0], y, sprite_data & 0x80 >> 7);
+                collision = set_display_value(c, pos_x[1], y, sprite_data & 0x40 >> 6);
+                collision = set_display_value(c, pos_x[2], y, sprite_data & 0x20 >> 5);
+                collision = set_display_value(c, pos_x[3], y, sprite_data & 0x10 >> 4);
+                collision = set_display_value(c, pos_x[4], y, sprite_data & 0x08 >> 3);
+                collision = set_display_value(c, pos_x[5], y, sprite_data & 0x04 >> 2);
+                collision = set_display_value(c, pos_x[6], y, sprite_data & 0x02 >> 1);
+                collision = set_display_value(c, pos_x[7], y, sprite_data & 0x01);
+
+                set_reg_value(c, 0xF, collision);
+
+                y = (y + 1) % W_HEIGHT;
+            }
+
+            break;
+        }
+        case 0xE000: {
+            // Ex9E - skip the next instruction if the key with value of Vx is pressed
+            char a = get_reg_value(c, get_opcode_x(c));
+            if (test_opcode(c, 0x00FF, 0x009E) && get_key_value(c, a)) {
+                pc_increment(c);
+            }
+            // ExA1 - skip the next instruction if the key with value of Vx is not pressed
+            else if (test_opcode(c, 0x00FF, 0x00A1) && !get_key_value(c, a)) {
+                pc_increment(c);
+            }
+
+            break;
+        }
+        case 0xF000: {
+            // Fx07 - value of DT is placed into Vx
+            if (test_opcode(c, 0x000F, 0x0007)) {
+                set_reg_value(c, get_opcode_x(c), get_dt(c));
+            }
+            // Fx0A - all execution stops until a key is pressed and the value of
+            //        the key is stored in Vx
+            else if (test_opcode(c, 0x000F, 0x000A)) {
+                c->pause = 1;
+
+                /* TODO: finish this instruction */
+            }
+            // Fx15 - set delay timer to the value of Vx
+            else if (test_opcode(c, 0x00FF, 0x0015)) {
+                set_dt(c, get_reg_value(c, get_opcode_x(c)));
+            }
+            // Fx18 - set sound timer to the value of Vx
+            else if (test_opcode(c, 0x00FF, 0x0018)) {
+                set_st(c, get_reg_value(c, get_opcode_x(c)));
+            }
+            // Fx1E - set register I to I + Vx
+            else if (test_opcode(c, 0x00FF, 0x001E)) {
+                short sum = get_reg_value(c, get_opcode_x(c)) + get_addr(c);
+
+                if (sum >= MAX_MEMORY) {
+                    sum = (sum % MAX_MEMORY) + 0x200;
+                }
+
+                set_addr(c, sum);
+            }
+            // Fx29 - load the memory location of sprite Vx into I
+            else if (test_opcode(c, 0x00FF, 0x0029)) {
+                // fontset starts at 0x50, translate that position by the value of Vx
+                // multiplied by the sprite width (5 bytes)
+                set_addr( c, 0x50 + get_reg_value(c, get_opcode_x(c)) * 5 );
+            }
+            // Fx33 - store BCD representation of Vx in I, I + 1, I + 2
+            else if (test_opcode(c, 0x00FF, 0x0033)) {
+                char value = get_reg_value(c, get_opcode_x(c));
+
+                c->memory[get_addr(c)]     = (value / 100) % 10;
+                c->memory[get_addr(c) + 1] = (value / 10) % 10;
+                c->memory[get_addr(c) + 2] = (value) % 10;
+            }
+            // Fx55 - store the values from V0 to Vx starting at memory address I
+            else if (test_opcode(c, 0x00FF, 0x0055)) {
+                for (int i = 0; i <= get_opcode_x(c); i++) {
+                    c->memory[get_addr(c) + i] = get_reg_value(c, i);
+                }
+            }
+            // Fx65 - read registers V0 to Vx starting at memory location I
+            else if (test_opcode(c, 0x00FF, 0x0065)) {
+                for (int i = 0; i <= get_opcode_x(c); i++) {
+                    set_reg_value(c, i, c->memory[get_addr(c) + i]);
+                }
+            }
+            break;
+        }
+    }
+
+    pc_increment(c);
+
+    // Update timers
+    if (c->DT > 0 && SDL_GetTicks() % 16 == 0) {
+        c->DT--;
+    } else {
+        c->DT = 0;
+    }
+
+    if (c->ST > 0 && SDL_GetTicks() % 16 == 0) {
+        fprintf(stdout, "\aBeep!\n");
+        c->ST--;
+    } else {
+        c->ST = 0;
     }
 }
 void load_file(chip8 *c, const char *s);
 
 /* Getters */
-char  get_reg_value(chip8 *c, int i)
+unsigned char  get_reg_value(chip8 *c, int i)
 {
     return c->V[i]; 
 }
 
-char  get_addr(chip8 *c)
+unsigned char  get_addr(chip8 *c)
 {
     return c->I;
 }
 
-char  get_addr_value(chip8 *c)
+unsigned char  get_addr_value(chip8 *c)
 {
-    return c->memory[get_address(c)];
+    return c->memory[get_addr(c)];
 }
 
-short get_pc(chip8 *c)
+unsigned short get_pc(chip8 *c)
 {
     return c->PC;
 }
 
-short get_stack_top(chip8 *c)
+unsigned short get_stack_top(chip8 *c)
 {
     return c->stack[c->SP];
 }
 
-char  get_display_value(chip8 *c, int x, int y)
+unsigned char  get_display_value(chip8 *c, int x, int y)
 {
     return c->display[x + y * W_WIDTH];
 }
 
-char *get_keys(chip8 *c)
+unsigned char *get_keys(chip8 *c)
 {
     return c->keys;
 }
 
-char  get_key_value(chip8 *c, int i)
+unsigned char  get_key_value(chip8 *c, int i)
 {
     return c->keys[i];
 }
 
-short get_opcode(chip8 *c)
+unsigned short get_opcode(chip8 *c)
 {
     return c->opcode;
 }
 
-short get_opcode_nnn(chip8 *c)
+unsigned short get_opcode_nnn(chip8 *c)
 {
     return c->opcode & 0x0FFF;
 }
 
-char  get_opcode_x(chip8 *c)
+unsigned char  get_opcode_x(chip8 *c)
 {
     return c->opcode & 0x0F00 >> 8;
 }
 
-char  get_opcode_y(chip8 *c)
+unsigned char  get_opcode_y(chip8 *c)
 {
     return c->opcode & 0x00F0 >> 4;
 }
 
-char  get_opcode_kk(chip8 *c)
+unsigned char  get_opcode_kk(chip8 *c)
 {
-    return c->opcode & 0xFF;
+    return c->opcode & 0x00FF;
 }
 
-char  get_dt(chip8 *c)
+unsigned char  get_dt(chip8 *c)
 {
     return c->DT;
 }
 
-char  get_st(chip8 *c)
+unsigned char  get_st(chip8 *c)
 {
     return c->ST;
+}
+
+unsigned char  get_display_value(chip8 *c, int x, int y)
+{
+    return c->display[x + (y * W_WIDTH)];
+}
+
+bool test_opcode(chip8 *c, int bitmask, int value)
+{
+    return (c->opcode & bitmask) == value;
 }
 
 /* Setters */
@@ -237,6 +465,18 @@ void set_st(chip8 *c, char n)
     c->ST = n;
 }
 
+bool set_display_value(chip8 *c, int x, int y, char n)
+{
+    char temp = get_display_value(c, x, y);
+    c->display[x + (y * W_WIDTH)] ^= n;
+
+    if (temp == 1 && get_display_value(c, x, y) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 /*
 unsigned char fontset[80] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -292,348 +532,5 @@ void initialize(chip8 *c)
     // Reset timers
     c->DT = 0;
     c->ST = 0;
-}
-
-void execute(chip8 *c)
-{
-    // form a two byte instruction via bit manipulation
-    c->opcode = c->memory[c->PC] << 8 | c->memory[c->PC + 1];
-
-    int first_param  = c->opcode & 0x0F00 >> 8;
-    int second_param = c->opcode & 0x00F0 >> 4;
-
-    // lmao this is my debugger
-    printf("%x\n", c->opcode);
-
-    switch (c->opcode & 0xF000) {
-        // 00E0 - CLS or 00EE - RET
-        case (0x0000):
-        {
-            if (c->opcode & 0xFFFF == 0x00E0) {
-                // Clear the display
-                clear_display(c);
-                c->PC += 2;
-            } else {
-                // RET
-                c->PC = c->stack[c->SP];
-                c->SP--;
-            }
-            break;
-        }
-        // 1nnn - JP addr
-        case (0x1000):
-        {
-            c->PC = c->opcode & 0x0FFF;
-            break;
-        }
-        // 2nnn - CALL addr
-        case (0x2000):
-        {
-            c->stack[c->SP] = c->PC;
-            c->SP++;
-
-            if (c->SP > 15) {
-                fprintf(stderr, "Stack overflow\n");
-                exit(1);
-            }
-            c->PC += 2;
-            break;
-        }
-        // 3xkk - SE Vx, byte
-        case (0x3000):
-        {
-            if (c->V[first_param] == c->opcode & 0x00FF) {
-                c->PC += 2;
-            }
-            c->PC += 2;
-            break;
-        }
-        // 4xkk - SNE Vx, byte
-        case (0x4000):
-        {
-            if (c->V[first_param] != c->opcode & 0x00FF) {
-                c->PC += 2;
-            }
-            c->PC += 2;
-            break;
-        }
-        // 5xy0 - SE Vx, Vy
-        case (0x5000):
-        {
-            if (c->V[first_param] == c->V[second_param]) {
-                c->PC += 2;
-            }
-            c->PC += 2;
-            break;
-        }
-        // 6xkk - LD Vx, byte
-        case (0x6000):
-        {
-            c->V[first_param] = c->opcode & 0x00FF;
-            c->PC += 2;
-            break;
-        }
-        // 7xkk - ADD Vx, byte
-        case (0x7000):
-        {
-            c->V[first_param] += c->opcode & 0x00FF;
-            c->PC += 2;
-            break;
-        }
-        case (0x8000):
-        {
-            // 8xy0 - LD Vx, Vy
-            if (c->opcode & 0xF00F == 0x8000) {
-                c->V[first_param] = c->V[second_param];
-            // 8xy1 - OR Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8001) {
-                c->V[first_param] |= c->V[second_param];
-            // 8xy2 - AND Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8002) {
-                c->V[first_param] &= c->V[second_param];
-            // 8xy3 - XOR Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8003) {
-                c->V[first_param] ^= c->V[second_param];
-            // 8xy4 - ADD Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8004) {
-                short short_sum = c->V[first_param] + c->V[second_param];
-
-                if (short_sum > 255) {
-                    c->V[15] = 1;
-                } else {
-                    c->V[15] = 0;
-                }
-
-                c->V[first_param] = short_sum & 0xFF;
-            // 8xy5 - SUB Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8005) {
-                if (c->V[first_param] > c->V[second_param]) {
-                    c->V[15] = 1;
-                } else {
-                    c->V[15] = 0;
-                }
-
-                c->V[first_param] -= c->V[second_param];
-            // 8xy6 - SHR Vx {, Vy}
-            } else if (c->opcode & 0xF00F == 0x8006) {
-                if (c->V[first_param] & 0x01 == 1) {
-                    c->V[15] = 1;
-                } else {
-                    c->V[15] = 0;
-                }
-
-                c->V[second_param] = c->V[second_param] >> 1;
-                c->V[first_param] = c->V[second_param];
-            // 8xy7 - SUBN Vx, Vy
-            } else if (c->opcode & 0xF00F == 0x8007) {
-                if (c->V[first_param] < c->V[second_param]) {
-                    c->V[15] = 1;
-                } else {
-                    c->V[15] = 0;
-                }
-                c->V[first_param] = c->V[second_param] - c->V[first_param];
-            // 8xyE - SHL Vx {, Vy}
-            } else if (c->opcode & 0xF00F == 0x800E) {
-                if (c->V[first_param] & 0x80 == 1) {
-                    c->V[15] = 1;
-                } else {
-                    c->V[15] = 0;
-                }
-
-                c->V[second_param] = c->V[second_param] << 1;
-                c->V[first_param] = c->V[second_param];
-            }
-
-            c->PC += 2;
-            break;
-        }
-        // 9xy0 - SNE Vx, Vy
-        case (0x9000):
-        {
-            if (c->V[first_param] != c->V[second_param]) {
-                c->PC += 2;
-            }
-
-            c->PC += 2;
-            break;
-        }
-        // Annn - LD I, addr
-        case (0xA000):
-        {
-            c->I = c->opcode & 0x0FFF;
-            c->PC += 2;
-            break;
-        }
-        // Bnnn - JP V0, addr
-        case (0xB000):
-        {
-            c->PC = c->V[0] + c->opcode & 0x0FFF;
-            break;
-        }
-        // Cxkk - RND Vx, byte
-        case (0xC000):
-        {
-            c->V[first_param] = (rand() % 256) & c->opcode & 0x00FF;
-            c->PC += 2;
-            break;
-        }
-        // Dxyn - DRW Vx, Vy, nibble
-        case (0xD000):
-        {
-            int x  = c->V[first_param];
-            int y  = c->V[second_param];
-            char h = c->opcode & 0x000F;
-
-            for (int draw_y = 0; draw_y < h; draw_y++) {
-                char data = c->memory[c->I + draw_y];
-
-                for (int draw_x = 0; draw_x < 8; draw_x++) {
-                    char bit_value = data & (0x80 >> draw_x);
-                    if (bit_value != 0) {
-                        if (c->display[x + draw_x + (y + draw_y) * W_HEIGHT]) {
-                            c->V[15] = 1;
-                        } else {
-                            c->V[15] = 0;
-                        }
-                        c->display[x + draw_x + (y + draw_y) * W_HEIGHT] ^= 1;
-                    }
-                }
-            }
-
-            c->PC += 2;
-            break;
-        }
-        case (0xE000):
-        {
-            // Ex9E - SKP Vx
-            if (c->opcode & 0xF0FF == 0xE09E && c->keys[c->V[first_param]]) {
-                c->PC += 2;
-            // ExA1 - SKNP Vx
-            } else if (c->opcode & 0xF0FF == 0xE0A1 && !c->keys[c->V[first_param]]) {
-                c->PC += 2;
-            }
-
-            c->PC += 2;
-            break;
-        }
-        case (0xF000):
-        {
-            // Fx07 - LD Vx, DT
-            if (c->opcode & 0xF0FF == 0xF007) {
-                c->V[first_param] = c->DT;
-
-                c->PC += 2;
-            // Fx0A - LD Vx, K
-            } else if (c->opcode & 0xF0FF == 0xF00A) {
-                // Wait for a key press, store the value of the key in Vx.
-                // All execution stops until a key is pressed, then the value of that key is stored in Vx.
-                c->pause = 1;
-
-                for (int i = 0; i < 16; i++) {
-                    if (c->keys[i]) {
-                        c->pause = 0;
-                        c->V[first_param] = i;
-                        break;
-                    }
-                }
-
-                if (!c->pause) {
-                    c->PC += 2;
-                }
-            // Fx15 - LD DT, Vx
-            } else if (c->opcode & 0xF015 == 0xF015) {
-                c->DT = c->V[first_param];
-
-                c->PC += 2;
-            // Fx18 - LD ST, Vx
-            } else if (c->opcode & 0xF018 == 0xF018) {
-                c->ST = c->V[first_param];
-
-                c->PC += 2;
-            // Fx1E - ADD I, Vx
-            } else if (c->opcode & 0xF01E == 0xF01E) {
-                c->memory[c->I] += c->V[first_param];
-
-                c->PC += 2;
-            // Fx29 - LD F, Vx
-            } else if (c->opcode & 0xF029 == 0xF029) {
-                c->I = 0x50 + (c->opcode & 0x0F00) >> 8 * 5;
-
-                c->PC += 2;
-            // Fx33 - LD B, Vx
-            } else if (c->opcode & 0xF033 == 0xF033) {
-                int n = c->V[first_param];
-                char h = (n / 100) % 10, t = (n / 10) % 10, o = n % 10; 
-
-                c->memory[c->I] = h;
-                c->memory[c->I+1] = t;
-                c->memory[c->I+2] = o;
-
-                c->PC += 2;
-            // Fx55 - LD [I], Vx
-            } else if (c->opcode & 0xF055 == 0xF055) {
-                for (int i = 0; i < (first_param); i++) {
-                    c->memory[c->I + i] = c->V[i];
-                }
-
-                c->PC += 2;
-            // Fx65 - LD Vx, [I]
-            } else if (c->opcode & 0xF065 == 0xF065) {
-                for (int i = 0; i < (first_param); i++) {
-                    c->V[i] = c->memory[c->I + i];
-                }
-
-                c->PC += 2;
-            }
-
-            break;
-        }
-        default:
-        {
-            fprintf(stderr, "Invalid opcode %i at %i\n", c->opcode, c->PC);
-            exit(1);
-            break;
-        }
-    }
-
-    // Update timers
-    if (c->DT > 0 && SDL_GetTicks() % 16 == 0) {
-        c->DT--;
-    } else {
-        c->DT = 0;
-    }
-
-    if (c->ST > 0 && SDL_GetTicks() % 16 == 0) {
-        fprintf(stdout, "\aBeep!\n");
-        c->ST--;
-    } else {
-        c->ST = 0;
-    }
-}
-
-void load_file(chip8 *c, const char *filename)
-{
-    FILE *fp;
-
-    fp = fopen(filename, "r");
-
-    if (fp == NULL) {
-        fprintf(stderr, "invalid filename\n");
-        exit(1);
-    }
-
-    int temp = 0x200;
-    int in = 0;
-    while (fscanf(fp, "%4x", &in) != EOF) {
-        char high = (in >> 8);
-        char low  = in & 0xFF;
-
-        c->memory[temp] = high & 0xFF;
-        c->memory[temp+1] = low & 0xFF;
-
-        temp+=2;
-    }
-
-    fclose(fp);
 }
 */

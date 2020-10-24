@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MAX_MEMORY 4096
 #define W_WIDTH      64
@@ -43,25 +44,28 @@ void execute_instruction(chip8 *c);
 void load_file(chip8 *c, const char *s);
 
 /* Getters */
-char  get_register_value(chip8 *c, int i);
-char  get_address_value(chip8 *c); // returns value at memory location I
-short get_pc(chip8 *c);
-short get_stack_top(chip8 *c);
-char  get_display_value(chip8 *c, int x, int y);
-char *get_keys(chip8 *c);
-char  get_key_value(chip8 *c, int i);
-short get_opcode(chip8 *c);
-short get_opcode_nnn(chip8 *c);
-char  get_opcode_x(chip8 *c);
-char  get_opcode_y(chip8 *c);
-char  get_opcode_kk(chip8 *c);
-char  get_dt(chip8 *c);
-char  get_st(chip8 *c);
+unsigned char  get_reg_value(chip8 *c, int i);
+unsigned char  get_addr(chip8 *c);
+unsigned char  get_addr_value(chip8 *c); // returns value at memory location I
+unsigned short get_pc(chip8 *c);
+unsigned short get_stack_top(chip8 *c);
+unsigned char  get_display_value(chip8 *c, int x, int y);
+unsigned char *get_keys(chip8 *c);
+unsigned char  get_key_value(chip8 *c, int i);
+unsigned short get_opcode(chip8 *c);
+unsigned short get_opcode_nnn(chip8 *c);
+unsigned char  get_opcode_x(chip8 *c);
+unsigned char  get_opcode_y(chip8 *c);
+unsigned char  get_opcode_kk(chip8 *c);
+unsigned char  get_dt(chip8 *c);
+unsigned char  get_st(chip8 *c);
+unsigned char  get_display_value(chip8 *c, int x, int y);
+bool  test_opcode(chip8 *c, int bitmask, int value);
 
 /* Setters */
-void set_register_value(chip8 *c, int i, char n);
-void set_address_value(chip8 *c, char n);
-void set_address(chip8 *c, short i);
+void set_reg_value(chip8 *c, int i, char n);
+void set_addr_value(chip8 *c, char n);
+void set_addr(chip8 *c, short i);
 void set_pc(chip8 *c, short n);
 void pc_increment(chip8 *c);
 void sp_increment(chip8 *c);
@@ -69,5 +73,6 @@ void stack_pop(chip8 *c);
 void set_key_value(chip8 *c, int i, char n);
 void set_dt(chip8 *c, char n);
 void set_st(chip8 *c, char n);
+bool set_display_value(chip8 *c, int x, int y, char n);
 
 #endif
