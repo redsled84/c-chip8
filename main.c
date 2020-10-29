@@ -29,15 +29,14 @@ void game_loop(SDL_Window *, SDL_Surface *, SDL_Rect *, chip8 *);
 
 int main(int argc, char **argv)
 {
-    chip8 *c = malloc(sizeof(chip8));
+    chip8 *c = calloc(1, sizeof(chip8));
 
     initialize(c);
-    load_file(c, "TETRIS");
+    load_file(c, "demo.ch8");
 
-    for (int i = 0x200; i < 0x200 + 100; i++) {
-        // printf("%x\n", c->memory[i]);
-    } 
-
+    for (int i = 0x200; i < 0x200 + 202; i++) {
+        printf("%x\n", c->memory[i]);
+    }
 
     SDL_Window* window = NULL;
     SDL_Surface* screen_surface = NULL;
@@ -88,10 +87,8 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
 
     SDL_Event e;
 
-    int counter = 0;
-
     // begin game loop
-    while (!quit && counter < 32) {
+    while (!quit) {
         // sdl event queue
         while (SDL_PollEvent( &e ) != 0) {
             // quit
@@ -100,7 +97,8 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
             // keyboard I/O
             } else if (e.type == SDL_KEYDOWN) {
                 for (int i = 0; i < 16; i++) {
-                    c->keys[i] = 0;
+                    c->keys[i]  = 0;
+                    c->key_flag = -1;
 
                     // hexadecimal key mapping (key -> index/value)
                     /* "7" => 1, "8" => 2, "9" => 3, "u" => 4, "i" => 5, "o" => 6, "j" => 7,
@@ -108,16 +106,17 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
                      * ";" => E, "/" => F
                      */
                     if (e.key.keysym.sym == hex_keypad[i]) {
-                        c->keys[i] = 1;
+                        c->keys[i]  = 1;
+                        c->key_flag = i;
+
+                        break;
                     }
                 }
             }
         }
 
         // execute the chip-8 interpreter
-        if (c->pause == 0) {
-            execute(c);
-        }
+        execute_instruction(c);
 
         // draw monochrome chip-8 display
         for (int i = 0; i < W_WIDTH * W_HEIGHT; i++) {
@@ -130,6 +129,5 @@ void game_loop(SDL_Window *window, SDL_Surface *screen_surface, SDL_Rect *displa
 
         // draw rects to the surface
         SDL_UpdateWindowSurface( window );
-        counter++;
     }
 }

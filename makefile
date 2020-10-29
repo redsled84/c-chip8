@@ -1,10 +1,10 @@
-OBJS = main.c chip8.c
+OBJS = chip8.c main.c
 
 CC = gcc
 
 COMPILER_FLAGS = -w
 
-LINKER_FLAGS = -lSDL2
+LINKER_FLAGS = -lSDL2 -lm
 
 OBJ_NAME = main
 
